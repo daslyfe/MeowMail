@@ -36,6 +36,18 @@ the Google setup, see [Trying it without signing in](#trying-it-without-signing-
 
 To stop the app, press the **■** button or **Cmd+.** in Xcode.
 
+### Install it as a normal app
+
+To keep meowmail in your Applications folder so you can open it without Xcode,
+run this from the project folder:
+
+    ./install-mac.sh
+
+It builds a release copy, puts it in `/Applications/meowmail.app`, and opens it.
+After that, open it from Launchpad, Spotlight, or the Dock like any other app.
+To update it after changing the code, run the script again. Your accounts and
+settings stay.
+
 ## 3. Run on your iPhone
 
 1. Add your Apple account in **Xcode > Settings > Accounts**.
