@@ -11,12 +11,12 @@ struct ChatView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider()
+            DashedRule()
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(thread.messages.enumerated()), id: \.element.id) { index, message in
-                            MessageRow(message: message, grouped: isGrouped(index))
+                            MessageRow(message: message, grouped: isGrouped(index), colorful: store.isColorful(thread, in: store.selectedChannel))
                                 .id(message.id)
                         }
                     }
@@ -36,13 +36,14 @@ struct ChatView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(thread.subject).font(.headline).lineLimit(2)
+            Text(thread.subject).font(Theme.serif(26)).foregroundStyle(Theme.ink).lineLimit(2)
             Text("\(thread.participants.count) people · \(thread.messages.count) messages")
-                .font(.caption)
+                .font(Theme.thin(13))
                 .foregroundStyle(Theme.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
     }
 
     private func isGrouped(_ index: Int) -> Bool {
@@ -68,6 +69,7 @@ private struct MessageRow: View {
     @Environment(AppStore.self) private var store
     var message: Message
     var grouped: Bool
+    var colorful = true
     @State private var showOriginal = false
     @State private var previewURL: URL?
     @State private var loadingAttachment: String?
@@ -77,22 +79,22 @@ private struct MessageRow: View {
             if grouped {
                 Color.clear.frame(width: 40, height: 1)
             } else {
-                Avatar(address: message.from)
+                Avatar(address: message.from, colorful: colorful)
             }
             VStack(alignment: .leading, spacing: 4) {
                 if !grouped { heading }
                 content
                 if !message.attachments.isEmpty { attachmentChips }
                 if canToggle {
-                    Button(showOriginal ? "Hide original" : "Show original") { showOriginal.toggle() }
-                        .font(.caption2)
+                    Button(showOriginal ? "hide original" : "show original") { showOriginal.toggle() }
+                        .font(Theme.thin(12))
                         .buttonStyle(.plain)
-                        .foregroundStyle(Theme.muted)
+                        .foregroundStyle(Theme.accent)
                 }
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 18)
         .padding(.top, grouped ? 2 : 12)
         .quickLookPreview($previewURL)
     }
@@ -102,14 +104,20 @@ private struct MessageRow: View {
     private var heading: some View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(message.isFromMe ? "You" : message.from.display)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(message.isFromMe ? Theme.accent : Theme.color(for: message.from.email))
+                // The name sits on a pastel highlighter stroke, like the dashboard's section titles.
+                Text(message.isFromMe ? "you" : message.from.display)
+                    .font(Theme.display(16))
+                    .tracking(0.3)
+                    .foregroundStyle(Theme.ink)
+                    .background(alignment: .bottom) {
+                        (message.isFromMe || !colorful ? Theme.field : Theme.color(for: message.from.email))
+                            .frame(height: 6)
+                    }
                 Text(message.date.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2)
+                    .font(Theme.thin(12))
                     .foregroundStyle(Theme.muted)
             }
-            Text(recipients).font(.caption2).foregroundStyle(Theme.muted).lineLimit(2)
+            Text(recipients).font(Theme.thin(12)).foregroundStyle(Theme.muted).lineLimit(2)
         }
     }
 
@@ -124,6 +132,9 @@ private struct MessageRow: View {
             HTMLMessageView(html: html)
         } else {
             Text(LinkedText.make(showOriginal ? message.fullText : message.chatText))
+                .font(Theme.serif(17))
+                .lineSpacing(3)
+                .foregroundStyle(Theme.ink)
                 .textSelection(.enabled)
         }
     }
@@ -142,15 +153,17 @@ private struct MessageRow: View {
                         if loadingAttachment == attachment.id {
                             ProgressView().controlSize(.small)
                         } else {
-                            Image(systemName: "doc.fill")
+                            Image(systemName: "doc").foregroundStyle(Theme.ink)
                         }
                         VStack(alignment: .leading) {
-                            Text(attachment.filename).lineLimit(1)
-                            Text(attachment.sizeText).font(.caption2).foregroundStyle(Theme.muted)
+                            Text(attachment.filename).font(Theme.display(14)).foregroundStyle(Theme.ink).lineLimit(1)
+                            Text(attachment.sizeText).font(Theme.thin(12)).foregroundStyle(Theme.muted)
                         }
                     }
-                    .padding(10)
-                    .background(Theme.sidebar, in: RoundedRectangle(cornerRadius: 8))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Theme.sidebar)
+                    .overlay(Rectangle().stroke(Theme.ink, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
@@ -205,10 +218,10 @@ struct Composer: View {
                     showRecipients.toggle()
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: showRecipients ? "chevron.down" : "chevron.right")
+                        Text(showRecipients ? "▾" : "▸")
                         Text(summary).lineLimit(1)
                     }
-                    .font(.caption)
+                    .font(Theme.thin(13))
                     .foregroundStyle(Theme.muted)
                 }
                 .buttonStyle(.plain)
@@ -221,8 +234,8 @@ struct Composer: View {
             if !draft.attachments.isEmpty { pendingAttachments }
             if isTooLarge {
                 Text("Attachments are over Gmail's 25 MB limit.")
-                    .font(.caption)
-                    .foregroundStyle(Theme.unread)
+                    .font(Theme.thin(13))
+                    .foregroundStyle(Theme.alert)
             }
             HStack(alignment: .bottom, spacing: 8) {
                 Button { showFiles = true } label: { Image(systemName: "paperclip") }
@@ -235,11 +248,15 @@ struct Composer: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Attach photo")
 
-                TextField(thread == nil ? "Write your email" : "Reply", text: $draft.body, axis: .vertical)
+                // hextime-style input: Courier on a dotted underline.
+                TextField(thread == nil ? "write your email" : "reply", text: $draft.body, axis: .vertical)
                     .textFieldStyle(.plain)
+                    .font(Theme.typewriter(15))
                     .lineLimit(1...8)
-                    .padding(8)
-                    .background(Theme.field, in: RoundedRectangle(cornerRadius: 8))
+                    .padding(.vertical, 6)
+                    .overlay(alignment: .bottom) {
+                        Line().stroke(Theme.ink, style: StrokeStyle(lineWidth: 1, dash: [1, 2])).frame(height: 1)
+                    }
 
                 Button {
                     if newPeople.isEmpty { send() } else { confirmNewPeople = true }
@@ -247,17 +264,20 @@ struct Composer: View {
                     if isSending {
                         ProgressView().controlSize(.small)
                     } else {
-                        Image(systemName: "paperplane.fill")
+                        Text("send")
                     }
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(canSend ? Theme.accent : Theme.muted)
+                .buttonStyle(SilverButtonStyle())
+                .opacity(canSend ? 1 : 0.5)
                 .disabled(!canSend)
                 .accessibilityLabel("Send")
             }
+            .foregroundStyle(Theme.ink)
         }
-        .padding(12)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
         .background(Theme.sidebar)
+        .overlay(alignment: .top) { DashedRule() }
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             guard case .success(let urls) = result else { return }
             for url in urls { addFile(url) }
@@ -280,10 +300,10 @@ struct Composer: View {
 
     private func recipientField(_ label: String, text: Binding<String>) -> some View {
         HStack {
-            Text(label).font(.caption).foregroundStyle(Theme.muted).frame(width: 24, alignment: .leading)
+            Text(label).font(Theme.thin(13)).foregroundStyle(Theme.muted).frame(width: 24, alignment: .leading)
             TextField("name@example.com, …", text: text)
                 .textFieldStyle(.plain)
-                .font(.callout)
+                .font(Theme.typewriter(14))
                 .autocorrectionDisabled()
                 #if os(iOS)
                 .textInputAutocapitalization(.never)
@@ -307,7 +327,7 @@ struct Composer: View {
                         .accessibilityLabel("Remove \(attachment.filename)")
                     }
                     .padding(6)
-                    .background(Theme.field, in: Capsule())
+                    .background(Theme.content).overlay(Rectangle().stroke(Theme.ink, style: StrokeStyle(lineWidth: 0.5, dash: [3, 2])))
                 }
             }
         }
@@ -362,9 +382,9 @@ struct NewEmailView: View {
             VStack(spacing: 0) {
                 TextField("Subject", text: $draft.subject)
                     .textFieldStyle(.plain)
-                    .font(.headline)
+                    .font(Theme.serif(20))
                     .padding(12)
-                Divider()
+                DashedRule()
                 Spacer()
                 Composer(draft: $draft, thread: nil) { dismiss() }
             }

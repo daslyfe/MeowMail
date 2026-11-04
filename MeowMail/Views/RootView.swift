@@ -33,21 +33,27 @@ struct SetupView: View {
     var body: some View {
         @Bindable var store = store
         VStack(spacing: 18) {
-            Text("meowmail").font(.largeTitle.bold())
+            Text("meowmail").font(Theme.serif(48))
             Text("Paste the iOS OAuth client ID from Google Cloud, then connect your first Gmail account.")
+                .font(Theme.thin(16))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.muted)
             TextField("123456-abc.apps.googleusercontent.com", text: $store.clientID)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .font(Theme.typewriter(14))
+                .padding(.vertical, 4)
+                .overlay(alignment: .bottom) {
+                    Line().stroke(Theme.ink, style: StrokeStyle(lineWidth: 1, dash: [1, 2])).frame(height: 1)
+                }
                 .autocorrectionDisabled()
                 #if os(iOS)
                 .textInputAutocapitalization(.never)
                 #endif
-            Button("Connect Gmail") {
+            Button("connect gmail") {
                 store.clientID = store.clientID.trimmingCharacters(in: .whitespacesAndNewlines)
                 Task { await store.addAccount() }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(SilverButtonStyle())
             .disabled(GoogleSignIn.redirectScheme(for: store.clientID.trimmingCharacters(in: .whitespacesAndNewlines)) == nil)
         }
         .padding(24)
@@ -64,18 +70,19 @@ struct DesktopLayout: View {
     var body: some View {
         HStack(spacing: 0) {
             AccountRail()
-            ChannelSidebar { store.open(channel: $0) }
+            ChannelSidebar { store.openWithLatest(channel: $0) }
                 .frame(width: 230)
             if let channel = store.selectedChannel {
                 ThreadList(channel: channel) { store.open(thread: $0) }
                     .frame(width: 320)
             }
-            Divider()
+            DashedRule(axis: .vertical)
             if let id = store.selectedThreadID, let thread = store.thread(id) {
                 ChatView(thread: thread).id(id)
             } else {
-                Text("Pick a thread")
-                    .foregroundStyle(Theme.muted)
+                Text("pick a thread")
+                    .font(Theme.serif(22))
+                    .foregroundStyle(Theme.faint)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Theme.content)
             }

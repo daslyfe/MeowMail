@@ -144,4 +144,45 @@ final class CoreTests: XCTestCase {
         channel.addresses = ["m@x.com"]
         XCTAssertEqual(channel.gmailQuery, "from:m@x.com OR to:m@x.com OR cc:m@x.com")
     }
+
+    func testThreadChannelHoldsOnlyItsThreadEvenWhenArchived() {
+        let archived = thread([message(labels: [])])
+        let channel = Channel.following(archived)
+        XCTAssertEqual(channel.kind, .thread)
+        XCTAssertTrue(archived.belongs(to: channel))
+        let other = MailThread(id: "t2", historyID: "1", snippet: "", messages: [message()])
+        XCTAssertFalse(other.belongs(to: channel))
+    }
+
+    func testThreadChannelNameDropsReplyPrefixes() {
+        XCTAssertEqual(Channel.channelName("Re: Fwd: Lisbon in March?"), "lisbon-in-march")
+        XCTAssertEqual(Channel.channelName("RE:  "), "thread")
+        XCTAssertLessThanOrEqual(Channel.channelName(String(repeating: "word ", count: 20)).count, 32)
+    }
+
+    func testFollowedChannelCanHoldSeveralThreads() {
+        let first = thread([message()])
+        var channel = Channel.following(first)
+        let second = MailThread(id: "t2", historyID: "1", snippet: "", messages: [message()])
+        XCTAssertFalse(second.belongs(to: channel))
+        channel.followed.insert("t2")
+        XCTAssertTrue(first.belongs(to: channel))
+        XCTAssertTrue(second.belongs(to: channel))
+    }
+
+    func testSingleThreadChannelsSavedEarlierStillLoad() throws {
+        let json = #"{"id":"c2","kind":"thread","name":"lisbon","addresses":[],"pinned":[],"lastChecked":0,"threadID":"t1"}"#
+        var channel = try JSONDecoder().decode(Channel.self, from: Data(json.utf8))
+        XCTAssertEqual(channel.followed, ["t1"])
+        channel.followed.insert("t2")
+        XCTAssertNil(channel.threadID)
+        XCTAssertEqual(channel.followed, ["t1", "t2"])
+    }
+
+    func testOldSavedChannelsStillDecode() throws {
+        let json = #"{"id":"c1","kind":"person","name":"moo","addresses":["m@x.com"],"pinned":[],"lastChecked":0}"#
+        let channel = try JSONDecoder().decode(Channel.self, from: Data(json.utf8))
+        XCTAssertNil(channel.threadID)
+        XCTAssertEqual(channel.kind, .person)
+    }
 }

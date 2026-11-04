@@ -9,7 +9,7 @@ struct MeowMailApp: App {
         WindowGroup {
             RootView()
                 .environment(store)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.light)
                 .tint(Theme.accent)
                 .task(id: scenePhase) {
                     guard scenePhase == .active else { return }

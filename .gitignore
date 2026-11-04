@@ -2,3 +2,6 @@
 build/
 DerivedData/
 xcuserdata/
+
+# Paid font (Maxitype), licensed to Melanie only; the app falls back to the system serif without it
+MeowMail/Fonts/MXWim*

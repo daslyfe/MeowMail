@@ -58,12 +58,16 @@ final class AppStore {
             }
     }
 
+    /// New-mail count for a channel's badge. The inbox timeline never gets one: most mail
+    /// there needs no action, so only channels you set up (people and followed threads) count.
     func newCount(_ channel: Channel, account: String) -> Int {
-        threads(in: channel, account: account).filter { $0.hasNewActivity(since: channel.lastChecked) }.count
+        guard channel.kind != .all else { return 0 }
+        return threads(in: channel, account: account).filter { $0.hasNewActivity(since: channel.lastChecked) }.count
     }
 
+    /// Whether the account icon gets a dot: only for new mail in a people or followed channel.
     func hasNewThreads(_ account: Account) -> Bool {
-        threads[account.email]?.values.contains { $0.inTimeline && $0.hasNewActivity(since: account.lastChecked) } ?? false
+        account.channels.contains { newCount($0, account: account.email) > 0 }
     }
 
     var knownContacts: [Address] {
@@ -96,8 +100,32 @@ final class AppStore {
         selectedThreadID = nil
         searchResults = nil
         guard let selectedEmail else { return }
+        if let previous = selectedAccount?.channels.first(where: { $0.id == id })?.lastChecked {
+            previousCheck[id] = previous
+        }
         mutateChannel(selectedEmail, id) { $0.lastChecked = Date() }
         save()
+    }
+
+    /// When each channel was checked before the current visit, so mail that arrived
+    /// in between still looks new while you're looking at it.
+    private var previousCheck: [String: Date] = [:]
+
+    /// Whether a thread is shown in color. Followed and people channels always are;
+    /// in all-mail only threads with mail from someone else since your last visit are.
+    func isColorful(_ thread: MailThread, in channel: Channel?) -> Bool {
+        guard let channel, channel.kind == .all else { return true }
+        let since = previousCheck[channel.id] ?? channel.lastChecked
+        return (thread.lastIncomingDate ?? .distantPast) > since
+    }
+
+    /// Opens a channel with its most recent thread already showing, so a followed thread is one click away.
+    func openWithLatest(channel id: String) {
+        open(channel: id)
+        guard let selectedEmail, let channel = selectedChannel else { return }
+        if let latest = threads(in: channel, account: selectedEmail).max(by: { $0.lastDate < $1.lastDate }) {
+            open(thread: latest.id)
+        }
     }
 
     func open(thread id: String) {
@@ -151,6 +179,47 @@ final class AppStore {
             if channel.pinned.remove(id) == nil { channel.pinned.insert(id) }
         }
         save()
+    }
+
+    func renameChannel(_ id: String, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let selectedEmail, !trimmed.isEmpty else { return }
+        mutateChannel(selectedEmail, id) { $0.name = trimmed }
+        save()
+    }
+
+    /// Gives a thread its own channel, or opens the one it already has.
+    func followThread(_ threadID: String) {
+        guard let selectedEmail, let thread = threads[selectedEmail]?[threadID] else { return }
+        if let existing = selectedAccount?.channels.first(where: { $0.kind == .thread && $0.followed.contains(threadID) }) {
+            open(channel: existing.id)
+            return
+        }
+        let channel = Channel.following(thread)
+        mutateAccount(selectedEmail) { $0.channels.append(channel) }
+        save()
+    }
+
+    /// Adds a thread to an existing followed channel, for several threads on one topic.
+    func addThread(_ threadID: String, toChannel id: String) {
+        guard let selectedEmail, threads[selectedEmail]?[threadID] != nil else { return }
+        mutateChannel(selectedEmail, id) { channel in
+            guard channel.kind == .thread else { return }
+            channel.followed.insert(threadID)
+        }
+        save()
+    }
+
+    /// Takes a thread out of a followed channel; a channel left with no threads is removed.
+    func removeThread(_ threadID: String, fromChannel id: String) {
+        guard let selectedEmail else { return }
+        mutateChannel(selectedEmail, id) { $0.followed.remove(threadID) }
+        if selectedThreadID == threadID { selectedThreadID = nil }
+        if selectedAccount?.channels.first(where: { $0.id == id })?.followed.isEmpty == true {
+            deleteChannel(id)
+        } else {
+            save()
+        }
     }
 
     func removeAccount(_ email: String) {
@@ -218,6 +287,10 @@ final class AppStore {
                 for channel in account.channels where channel.kind == .person {
                     try await fetch(query: channel.gmailQuery, max: 50, account: account.email)
                 }
+                // A followed thread may be archived, so the inbox sync wouldn't refresh it.
+                let followed = account.channels.flatMap(\.followed)
+                    .filter { threads[account.email]?[$0]?.inTimeline != true }
+                try await download(followed, account: account.email)
             } catch {
                 report(error, account: account.email, background: true)
             }
