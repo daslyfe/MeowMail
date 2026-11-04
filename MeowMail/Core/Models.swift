@@ -148,6 +148,8 @@ struct MailThread: Codable, Identifiable, Hashable {
             return inTimeline
         case .person:
             return !isDiscarded && !participants.isDisjoint(with: channel.addresses)
+        case .thread:
+            return channel.followed.contains(id)
         }
     }
 
@@ -158,7 +160,7 @@ struct MailThread: Codable, Identifiable, Hashable {
 }
 
 struct Channel: Codable, Identifiable, Hashable {
-    enum Kind: String, Codable { case all, person }
+    enum Kind: String, Codable { case all, person, thread }
 
     var id: String = UUID().uuidString
     var kind: Kind
@@ -166,8 +168,43 @@ struct Channel: Codable, Identifiable, Hashable {
     var addresses: Set<String> = []
     var pinned: Set<String> = []
     var lastChecked: Date = Date()
+    /// Channels saved before a followed channel could hold several threads stored just one here.
+    var threadID: String?
+    /// The threads a `.thread` channel follows. Optional so older saved state still loads.
+    var threadIDs: Set<String>?
 
-    static func timeline() -> Channel { Channel(kind: .all, name: "threads") }
+    /// The threads this channel follows, whichever way they were saved.
+    var followed: Set<String> {
+        get { threadIDs ?? Set([threadID].compactMap { $0 }) }
+        set {
+            threadIDs = newValue
+            threadID = nil
+        }
+    }
+
+    /// A channel that follows a thread, named after its subject.
+    static func following(_ thread: MailThread) -> Channel {
+        var channel = Channel(kind: .thread, name: channelName(thread.subject))
+        channel.followed = [thread.id]
+        return channel
+    }
+
+    /// "Re: Fwd: Lisbon in March?" becomes "lisbon-in-march".
+    static func channelName(_ subject: String) -> String {
+        var text = subject
+        while let range = text.range(of: #"^\s*(re|fwd?|aw|sv)\s*:\s*"#, options: [.regularExpression, .caseInsensitive]) {
+            text.removeSubrange(range)
+        }
+        let name = text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+        guard !name.isEmpty else { return "thread" }
+        guard name.count > 32 else { return name }
+        return String(name.prefix(32)).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    }
+
+    static func timeline() -> Channel { Channel(kind: .all, name: "all-mail") }
 
     var gmailQuery: String {
         addresses.sorted()
