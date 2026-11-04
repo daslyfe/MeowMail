@@ -41,7 +41,13 @@ Adds a third kind of channel that holds specific threads, shown in a **FOLLOWING
 - A pixel-pattern border runs down the right edge of the channel sidebar (`MeowMail/pixel-strip.png`).
 - Color rules:
   - Followed and people channels show colored avatars and name strokes, and their names in the sidebar have a colored underline.
-  - In the inbox timeline, threads are grey unless they received mail from someone else since the channel was last opened.
+  - In the inbox timeline, threads are grey unless they are unread and received mail from someone else since the channel was last opened. Opening a thread turns it grey.
+  - Threads that belong to a followed channel stay colored in the inbox timeline.
+
+## 3a. Composer and scrolling
+
+- **Bigger drafting space:** the reply box starts 5 lines tall and grows to 20. In the new email window the body starts 14 lines tall and grows to 40, and the window opens at 640 × 600 or larger and can be resized.
+- **Scrolling past HTML emails (macOS):** HTML messages are drawn in a web view sized to the whole message. The web view caught scroll-wheel events, so a long HTML message could trap scrolling and hide the messages below it. Scroll events now pass through to the conversation.
 
 ### Fonts
 
@@ -69,7 +75,8 @@ Fonts are registered at launch from the app bundle. Any font that is missing fal
 | `Core/Models.swift` | `.thread` channel kind, followed thread IDs, subject-to-channel-name helper |
 | `Core/AppStore.swift` | Follow, add, remove and rename actions; open newest thread; badge and color rules; sync of followed threads |
 | `Views/Sidebars.swift` | FOLLOWING section, drag and drop, context menus, rename dialog, restyle |
-| `Views/ChatView.swift` | Restyle, color rules |
+| `Views/ChatView.swift` | Restyle, color rules, bigger reply and new email fields |
+| `Views/HTMLMessageView.swift` | Scroll events pass through HTML messages on macOS |
 | `Views/RootView.swift` | Open newest thread on channel click, restyle |
 | `Views/Theme.swift` | Colors, font loading, pixel strip, dashed rule, silver button, avatars, badges |
 | `MeowMailApp.swift` | Light mode |

@@ -252,7 +252,7 @@ struct Composer: View {
                 TextField(thread == nil ? "write your email" : "reply", text: $draft.body, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(Theme.typewriter(15))
-                    .lineLimit(1...8)
+                    .lineLimit(thread == nil ? 14...40 : 5...20)
                     .padding(.vertical, 6)
                     .overlay(alignment: .bottom) {
                         Line().stroke(Theme.ink, style: StrokeStyle(lineWidth: 1, dash: [1, 2])).frame(height: 1)
@@ -397,7 +397,7 @@ struct NewEmailView: View {
             }
         }
         #if os(macOS)
-        .frame(width: 520, height: 420)
+        .frame(minWidth: 640, minHeight: 600)
         #endif
     }
 }

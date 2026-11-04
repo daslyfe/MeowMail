@@ -40,10 +40,25 @@ private func makeWebView(_ coordinator: WebContainer.Coordinator) -> WKWebView {
     let configuration = WKWebViewConfiguration()
     configuration.defaultWebpagePreferences.allowsContentJavaScript = false
     configuration.websiteDataStore = .nonPersistent()
+    #if os(macOS)
+    let view = PassthroughWebView(frame: .zero, configuration: configuration)
+    #else
     let view = WKWebView(frame: .zero, configuration: configuration)
+    #endif
     view.navigationDelegate = coordinator
     return view
 }
+
+#if os(macOS)
+/// The web view is sized to its whole page, so it never needs to scroll itself.
+/// It hands scroll-wheel events to the conversation around it; otherwise a long
+/// HTML message traps the scroll and hides the messages below it.
+final class PassthroughWebView: WKWebView {
+    override func scrollWheel(with event: NSEvent) {
+        nextResponder?.scrollWheel(with: event)
+    }
+}
+#endif
 
 #if os(macOS)
 struct WebContainer: NSViewRepresentable {

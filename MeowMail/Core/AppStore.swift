@@ -112,11 +112,15 @@ final class AppStore {
     private var previousCheck: [String: Date] = [:]
 
     /// Whether a thread is shown in color. Followed and people channels always are;
-    /// in all-mail only threads with mail from someone else since your last visit are.
+    /// in all-mail followed threads are too, and otherwise only unread threads with mail from someone else since your last visit are,
+    /// so a thread loses its color once you open it.
     func isColorful(_ thread: MailThread, in channel: Channel?) -> Bool {
         guard let channel, channel.kind == .all else { return true }
+        if selectedAccount?.channels.contains(where: { $0.kind == .thread && $0.followed.contains(thread.id) }) == true {
+            return true
+        }
         let since = previousCheck[channel.id] ?? channel.lastChecked
-        return (thread.lastIncomingDate ?? .distantPast) > since
+        return thread.isUnread && (thread.lastIncomingDate ?? .distantPast) > since
     }
 
     /// Opens a channel with its most recent thread already showing, so a followed thread is one click away.
